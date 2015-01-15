@@ -1,0 +1,12 @@
+{application, consolidate_logs,
+    [
+    {description, ""},
+    {vsn, "1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+            ]},
+    {mod, { consolidate_logs, []}},
+    {env, []}
+    ]}.
