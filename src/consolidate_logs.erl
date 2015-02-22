@@ -1,6 +1,5 @@
 -module(consolidate_logs).
--export([ main/1,
-        remove_pid/0
+-export([ main/1
     ]).
 
 -define(E,entry).
@@ -130,9 +129,6 @@ insert_new(ModAndLineNmr,NoPidMsg,Severity,FN) ->
 store_nomatch(Data,FN) ->
     NewCount=ets:update_counter(nomatch,count,1),
     ets:insert(nomatch,{NewCount,Data,FN}).
-
-remove_pid() ->
-    remove_pid("2015-01-14 01:13:21.788 [debug] <45389.30259.3477> Supervisor {<45389.30259.3477>,wombat_plugin_proc_sup} started wombat_plugin:start_link(wombat_plugin_alarm, {wombat_ref,alarm,<45389.30258.3477>}, [{collection_interval,60000},{interval,10000},{system_checks,[{process_limit,[{minor,80},{major,...}]},...]},...]) at pid <45389.3949.3478>").
 
 remove_pid(Msg) ->
     case re:run(Msg,"(<[0-9]+.[0-9]+.[0-9]+>)",[global]) of
