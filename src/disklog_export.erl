@@ -4,6 +4,14 @@
 %% TODO - strip out node names from log entries
 %% We already have info about re-occurances
 
+% Grindr Run:
+% From 2282 entries to 6 entries ( log-2015-02-10_08-20-22 )
+% From 15632 entries to 6 entries ( log-2015-02-16_20-25-53 )
+
+% EE Run:
+
+
+
 % Props:[{alarm_msg_type,new}]
 % Props:[{alarm_msg_type,repeat}]
 % Props:[{alarm_msg_type,clear}]
@@ -23,10 +31,18 @@
 -record(?STATE, { entries = [],
                   entry_count = 0,
                   status = busy,
-                  push_server_pid }).
+                  push_server_pid,
+                  total = 0 }).
 
--export([dl_to_ets/0,
-         dl_to_ets_g/0,
+-type id() :: {string(), binary(), binary()}.
+-record(?MODULE, {id :: id(),
+                  count = 0 :: integer(),
+                  message :: string()
+                  }).
+
+-export([
+         install/0,
+         dl_to_db/0,
          csv/0]).
 
 -record(log, {
@@ -39,25 +55,46 @@
           props = []    :: proplists:proplist()
          }).
 
-ets_tbl() ->    All = ets:all(),
-    case lists:member(notifications,All) of
-        true ->
-            true = ets:delete_all_objects(notifications);
-        false ->
-            notifications = ets:new(notifications,[named_table,set,public])
+% ets_tbl() ->    All = ets:all(),
+%     case lists:member(notifications,All) of
+%         true ->
+%             true = ets:delete_all_objects(notifications);
+%         false ->
+%             notifications = ets:new(notifications,[named_table,set,public])
+%     end.
+
+install() ->
+    stopped = mnesia:stop(),
+    mnesia:create_schema([node()]),
+    ok = mnesia:start().
+
+mnesia() ->
+    mnesia:start(),
+    try
+        [id,count,message] = mnesia:table_info(?MODULE,attributes),
+        {atomic,ok} = mnesia:delete_table(?MODULE),
+        table()
+    catch
+        exit:{aborted,{no_exists,?MODULE,attributes}} ->
+            table();
+        C:E ->
+            throw({stop,[{c,C},{e,E},{s,erlang:get_stacktrace()}]})
     end.
 
-dl_to_ets() ->
-    ets_tbl(),
-    dl_to_ets("/Users/ruanpienaar/code/wombat_ee/rel/wombat/wombat/data/wombat@vsiswebwb01/core_mm").
+table() ->
+    {atomic,ok} =
+    mnesia:create_table(
+            ?MODULE,
+            [{type,set},
+             {attributes,record_info(fields, ?MODULE)}
+           ]).
 
-dl_to_ets_g() ->
-    ets_tbl(),
-    % dl_to_ets("/Users/ruanpienaar/code/wombat_ee/rel/wombat/wombat/data/wombat@vsiswebwb01/core_mm/grindr").
-    dl_to_ets("/Users/ruanpienaar/code/erlang/erlang_snippets/test").
+dl_to_db() ->
+    % ets_tbl(),
+    mnesia(),
+    dl_to_db("logs").
 
-
-dl_to_ets(Dir) ->
+dl_to_db(Dir) ->
     % RevFiles = filelib:fold_files(
     %           Dir,
     %           "log-.*",
@@ -65,11 +102,11 @@ dl_to_ets(Dir) ->
     %           fun(LogFile, Acc) -> [filename:basename(LogFile) | Acc] end,
     %           []),
     % Files = lists:sort(RevFiles),
-    Files = ["log-2015-02-18_05-27-07"],
+    Files = ["log-2015-02-03_11-03-58"],
     Pids = lists:map(fun(_) ->
         {ok,Pid} = start_link(pop_server),
         Pid
-    end, lists:seq(1,8)),
+    end, lists:seq(1,erlang:system_info(schedulers_online))),
 
     ok = lists:foreach(fun(File) ->
         export_disklog_file(Dir++"/"++File,Pids)
@@ -83,15 +120,17 @@ dl_to_ets(Dir) ->
 csv() -> %% §
     {ok,FPid} = file:open("entries.csv", [write]),
     ok = file:write(FPid,<<"Count§App§Node§Message\n">>),
-    csv(FPid,ets:first(notifications)).
+    csv(FPid,first()).
 
 csv(FPid,'$end_of_table') ->
     ok = file:close(FPid);
 csv(FPid,Id) ->
-    [{{Str,O,N},Cnt}] = ets:lookup(notifications,Id),
-    Data = list_to_binary(io_lib:format("~p§\"~p\"§~p§~p\n",[Cnt,O,N,Str])),
+    [Rec] = lookup(Id),
+    {_Str,O,N} = Rec#?MODULE.id,
+    Data = list_to_binary(io_lib:format("~p§\"~p\"§~p§~p\n",
+        [Rec#?MODULE.count,O,N,Rec#?MODULE.message])),
     ok = file:write(FPid,Data),
-    csv(FPid,ets:next(notifications,Id)).
+    csv(FPid,next(Id)).
 
 export_disklog_file(F,Pids) ->
     export_disklog_file(F,Pids,1).
@@ -109,11 +148,11 @@ export_disklog_file(F,Pids,PidNumber) ->
 export_disklog_file(F,eof,_Pids,_PidNumber) ->
     disk_log:close(F);
 export_disklog_file(F,{NewCont, Entries},Pids,PidNumber) ->
-    io:format("C."),
+    % io:format("C."),
     Pid = lists:nth(PidNumber,Pids),
     case push(Pid,Entries) of
-        EntryCount when EntryCount >= 1000 ->
-            timer:sleep(500),
+        EntryCount when EntryCount >= 500 ->
+            timer:sleep(1000),
             go_on(PidNumber,F,NewCont,Pids);
         _EntryCount ->
             %% io:format("~p. ",[EntryCount]),
@@ -143,7 +182,7 @@ done(Pid) ->
 %% -----------
 
 init(pop_server) ->
-    _TREF = erlang:start_timer(50, self(), pop_a_few),
+    _TREF = erlang:start_timer(2, self(), pop_a_few),
     {ok, #?STATE{}}.
 
 handle_call({process, Entries}, _From, State) ->
@@ -153,7 +192,8 @@ handle_call({push,Entries}, _From, State) ->
     NewCount = State#?STATE.entry_count + 1,
     {reply, NewCount,
         State#?STATE{ entries = [ Entries | State#?STATE.entries ],
-                      entry_count = NewCount }};
+                      entry_count = NewCount
+                    }};
 handle_call(_Request, _From, State) ->
     {reply, {error,     unknown_call}, State}.
 
@@ -168,10 +208,19 @@ handle_info({timeout,_TREF,pop_a_few}, #?STATE{ status = done,
 handle_info({timeout,_,pop_a_few}, #?STATE{ entries = []         } = State) ->
     {noreply, State};
 handle_info({timeout,_,pop_a_few}, #?STATE{ entries = [Entries|R] } = State) ->
+    Total = State#?STATE.total,
+    case Total rem 100 of
+        0 ->
+            io:format(".");
+        _ ->
+            ok
+    end,
     ok = process_data(Entries),
-    _TREF = erlang:start_timer(4, self(), pop_a_few),
+    _TREF = erlang:start_timer(25, self(), pop_a_few),
     {noreply,State#?STATE{ entries = R,
-                           entry_count = State#?STATE.entry_count - 1 }}.
+                           entry_count = State#?STATE.entry_count - 1,
+                           total = Total + 1
+                           }}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -182,6 +231,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% -----------
 
 process_data(Entries) when is_list(Entries) ->
+    %%io:format("p.",[]),
     ok =
         %% TODO: Maybe do a first and last on date,
         %% so that you can see a period...
@@ -193,13 +243,14 @@ process_data(Entries) when is_list(Entries) ->
                                message=M,
                                props=_P}) ->
             CleanStr = remove_datetime( remove_pid(binary_to_list(M)) ),
-            Id = {CleanStr,O,N},
-
-            ok = loop_table({CleanStr,O,N}),
-
-            case ets:lookup(notifications, Id) of
-                []         -> true=ets:insert_new(notifications,{Id,0});
-                [{Id,Cnt}] -> true=ets:insert(notifications,{Id,Cnt+1})
+            Preped =   prepare_for_lev_s(CleanStr),
+            Id = {Preped,O,N},
+            case lev_s_loop_table(Id) of  %% This just bumps up a count
+                not_simmilar ->
+                    new_rec(#?MODULE{id = Id, message = M});
+                {simmilar,LoopId} ->
+                    [Rec] = lookup(LoopId),
+                    inc_rec_count(Rec)
             end
         end, Entries).
 
@@ -244,7 +295,6 @@ do_clean(Str,Char,Start,Length) ->
     {match,string:substr(Str,1,Start)++Char++lists:nthtail(Start+Length, Str)}.
 
 
-
 %%------------------------------------------------------------------------------
 %% @spec levenshtein(StringA, StringB) -> integer()
 %%      StringA = StringB = string()
@@ -275,22 +325,56 @@ levenshtein_distlist([], _, _, NewDistList, _) ->
 dif(C, C) -> 0;
 dif(_, _) -> 1.
 
+% Acceptance rate is 75% simmilarity
+% Rate(%) = levenshtein Count / String length
+lev_s_loop_table(Id={_,_,_}) ->
+    loop_tbl(first(), Id).
 
-
-% Acceptance rate is 85% simmilarity
-% Rate(%) = levenshteinCount/length
-loop_table({CleanStr,_O,_N}) ->
-    loop_tbl(ets:first(notifications),CleanStr).
-
-loop_tbl('$end_of_table',_CleanStr) ->
-    ok;
-loop_tbl(Id,CleanStr) ->
-    [{{Str,_O,_N},Cnt}] = ets:lookup(notifications,Id),
-    LevCount = levenshtein(CleanStr, Str),
-    case (LevCount/length(Str)) > 0.85 of
+loop_tbl('$end_of_table',_Id={_,_,_}) ->
+    not_simmilar;
+loop_tbl(LoopId={CleanStr,_,_},
+            _Id={CleanStr,_,_}) ->
+    %% ok = io:format(".d.",[]), % Drop
+    {simmilar,LoopId};
+loop_tbl(LoopId={LoopCleanStr,_,_},
+             Id={CleanStr,    _,_}) ->
+    LevCount = levenshtein(CleanStr, LoopCleanStr),
+    case (LevCount/length(CleanStr)) > 0.75 of
         true ->
-            true=ets:insert(notifications,{Id,Cnt+1}),
-            ok = io:format(".d.",[]);
+            %% ok = io:format(".d.",[]),% Drop
+            {simmilar,LoopId};
         false ->
-            loop_tbl(ets:next(notifications,Id),CleanStr)
+            loop_tbl(next(LoopId),Id)
     end.
+
+prepare_for_lev_s(CleanStr) ->
+    NoSpaces = re:replace(CleanStr, "(\\s+)", "", [global,{return,list}]),
+    UP=string:to_upper(NoSpaces),
+    Limit = 250,
+    L=case length( UP ) > Limit of
+        true ->
+             {List2, _List3} = lists:split(Limit, UP),
+            List2;
+        false ->
+            UP
+    end,
+     _NoNumbers = re:replace(L, "([0-9])", "", [global,{return,list}]).
+
+lookup(Id) ->
+    mnesia:dirty_read(?MODULE, Id).
+
+inc_rec_count(Rec) ->
+    UpdateRec = Rec#?MODULE{ count = Rec#?MODULE.count + 1 },
+    ok = mnesia:dirty_write(UpdateRec).
+
+new_rec(NewR) ->
+    %% TODO: do we need some duplication check?
+    ok = mnesia:async_dirty(fun() ->
+        mnesia:dirty_write(NewR)
+    end).
+
+first() ->
+    mnesia:dirty_first(?MODULE).
+
+next(Id) ->
+    mnesia:dirty_next(?MODULE, Id).
