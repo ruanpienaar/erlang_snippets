@@ -150,7 +150,7 @@ handle_info(Info, StateName, State) ->
     {next_state, StateName, State}.
 
 terminate(Reason, StateName, _State) ->
-    io:format("~p Terminate in ~p with Reason: ~p~n", [StateName, Reason]),
+    io:format("Terminate in ~p with Reason: ~p~n", [StateName, Reason]),
     ok.
 
 code_change(_OldVsn, StateName, State, _Extra) ->
