@@ -1,0 +1,37 @@
+digraph "/opt/rp/code/erlang_snippets/src/toaster_fsm" { 
+rankdir=LR;
+edge [fontsize=10];
+node [shape=circle];
+ranksep = 2;
+nodesep = 0.5
+powered->powered[label="stop_toasting"]
+initial_state->powered[label="plug_in"]
+toasting->toasting[label="toast"]
+initial_state->initial_state[label="toast"]
+toasting->toasting[label="plug_in"]
+initial_state->initial_state[label="stop_toasting"]
+initial_state->powered[label="plug_in"]
+initial_state->initial_state[label="stop_toasting"]
+toasting->toasting[label="Info"]
+powered->initial_state[label="plug_out"]
+powered->toasting[label="toast"]
+powered->powered[label="plug_in"]
+powered->powered[label="plug_in"]
+toasting->powered[label="stop_toasting"]
+toasting->initial_state[label="plug_out"]
+toasting->initial_state[label="plug_out"]
+initial_state->initial_state[label="toast"]
+initial_state->initial_state[label="Info"]
+init->initial_state[label=""]
+toasting->powered[label="stop_toasting"]
+toasting->toasting[label="plug_in"]
+initial_state->initial_state[label="plug_out"]
+toasting->toasting[label="toast"]
+initial_state->initial_state[label="plug_out"]
+powered->powered[label="Info"]
+powered->toasting[label="toast"]
+toasting->powered[label="timeout"]
+powered->powered[label="stop_toasting"]
+powered->initial_state[label="plug_out"]
+
+}
