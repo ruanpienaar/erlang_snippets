@@ -61,9 +61,9 @@
 
 %% -----------------------------------
 %% API
-%% Added some Sync/Call's as an example...
+%% Added some Sync/Call's as examples...
 start_link() ->
-    gen_statem:start_link(?REG_NAME, ?MODULE, {}, []).
+    gen_statem:start_link(?REG_NAME, ?MODULE, #{ slices => 0 }, []).
 
 %% powered 
 plug_in() ->
@@ -103,8 +103,8 @@ remove_bread() ->
 
 %% -----------------------------------
 
-init({}) ->
-    {ok, initial_state, _Data = #{}}.
+init(Data) ->
+    {ok, initial_state, Data}.
 
 %% state_functions | handle_event_function
 callback_mode() ->
@@ -129,81 +129,94 @@ callback_mode() ->
 %% Actions:
 % https://github.com/erlang/otp/blob/master/lib/stdlib/src/gen_statem.erl#L113
 
+initial_state(cast, plug_out, _Data) ->
+    'keep_state_and_data';
 initial_state(cast, plug_in, Data) ->
     {next_state, powered, Data};
 initial_state({call, From}, plug_in, Data) ->
     ok = gen_statem:reply({reply, From, ok}),
     {next_state, powered, Data};
-initial_state(cast, toast, Data) ->
+initial_state(cast, {add_bread, X}, Data) ->
+    {'keep_state', Data#{ slices => X }};
+initial_state(cast, remove_bread, Data) ->
+    {'keep_state', Data#{ slices => 0 }};
+initial_state(cast, toast, _Data) ->
     io:format("S: ~p Uhm, NOT plugged in...~n",[initial_state]),
-    {next_state, initial_state, Data};
-initial_state({call, From}, toast, Data) ->
-    io:format("S: ~p Uhm, NOT plugged in...~n",[initial_state]),
-    ok = gen_statem:reply({reply, From, ok}),
-    {next_state, initial_state, Data};
-initial_state(cast, stop_toasting, Data) ->
-    io:format("S: ~p Uhm, NOT plugged in...~n",[initial_state]),
-    {next_state, initial_state, Data};
-initial_state({call, From}, stop_toasting, Data) ->
+    'keep_state_and_data';
+initial_state({call, From}, toast, _Data) ->
     io:format("S: ~p Uhm, NOT plugged in...~n",[initial_state]),
     ok = gen_statem:reply({reply, From, ok}),
-    {next_state, initial_state, Data};
-%% Leaving this here to explore...
-initial_state(EventType, CurentState, Data) ->
-    io:format("~p initial_state(~p, ~p, ~p)~n", 
-        [?MODULE, EventType, CurentState, Data]),
-    {next_state, initial_state, _NewData=Data}.
+    'keep_state_and_data';
+initial_state(cast, stop_toasting, _Data) ->
+    io:format("S: ~p Uhm, not toasting...~n",[powered]),
+    'keep_state_and_data';
+initial_state({call, From}, stop_toasting, _Data) ->
+    io:format("S: ~p Uhm, not toasting...~n",[powered]),
+    ok = gen_statem:reply({reply, From, ok}),
+    'keep_state_and_data'.
 
-powered(cast, plug_in, Data) ->
+%% state_timeout is used , so that handling consequtive
+%% other state event will not reset the timer
+
+%% Side node, when chaning to another state, the state_timeout
+%% get's cancelled.
+
+powered(cast, plug_out, Data) ->
+    {next_state, initial_state, Data};
+powered(cast, plug_in, _Data) ->
     io:format("S: ~p Uhm, already plugged in...~n",[powered]),
-    {next_state, powered, Data};
-powered({call, From}, plug_in, Data) ->
+    'keep_state_and_data';
+powered({call, From}, plug_in, _Data) ->
     io:format("S: ~p Uhm, already plugged in...~n",[powered]),
     ok = gen_statem:reply({reply, From, ok}),
-    {next_state, powered, Data};
+    'keep_state_and_data';
+powered(cast, {add_bread, X}, Data) ->
+    {'keep_state', Data#{ slices => X }};
+powered(cast, remove_bread, Data) ->
+    {'keep_state', Data#{ slices => 0 }};
 powered(cast, toast, Data) ->
     {next_state, toasting, Data, [{state_timeout, 5000, done_toasting}]};
 powered({call, From}, toast, Data) ->
     ok = gen_statem:reply({reply, From, ok}),
     {next_state, toasting, Data, [{state_timeout, 5000, done_toasting}]};
-powered(cast, stop_toasting, Data) ->
-    {next_state, powered, Data};
-powered({call, From}, stop_toasting, Data) ->
+powered(cast, stop_toasting, _Data) ->
+    io:format("S: ~p Uhm, not toasting...~n",[powered]),
+    'keep_state_and_data';
+powered({call, From}, stop_toasting, _Data) ->
+    io:format("S: ~p Uhm, not toasting...~n",[powered]),
     ok = gen_statem:reply({reply, From, ok}),
-    {next_state, powered, Data};
-%% Leaving this here to explore...
-powered(EventType, CurentState, Data) ->
-    io:format("~p powered(~p, ~p, ~p)~n", 
-        [?MODULE, EventType, CurentState, Data]),
-    {next_state, powered, _NewData=Data}.
+    'keep_state_and_data'.
 
-toasting(cast, plug_in, Data) ->
+toasting(cast, plug_out, Data) ->
+    {next_state, initial_state, Data};
+toasting(cast, plug_in, _Data) ->
     io:format("S: ~p Uhm, already plugged in...~n",[toasting]),
-    {next_state, toasting, Data};
-toasting({call, From}, plug_in, Data) ->
+    'keep_state_and_data';
+toasting({call, From}, plug_in, _Data) ->
     io:format("S: ~p Uhm, already plugged in...~n",[toasting]),
     ok = gen_statem:reply({reply, From, ok}),
-    {next_state, toasting, Data};
-toasting(cast, toast, Data) ->
+    'keep_state_and_data';
+toasting(cast, {add_bread, _X}, _Data) ->
+    io:format("S: ~p Uhm, cannot add bread...~n",[toasting]),
+    keep_state_and_data;
+toasting(cast, remove_bread, _Data) ->
+    io:format("S: ~p Uhm, cannot remove bread...~n",[toasting]),
+    keep_state_and_data;
+toasting(cast, toast, _Data) ->
     io:format("S: ~p Uhm, already toasting...~n",[toasting]),
-    {next_state, toasting, Data};
-toasting({call, From}, toast, Data) ->
+    'keep_state_and_data';
+toasting({call, From}, toast, _Data) ->
     io:format("S: ~p Uhm, already toasting...~n",[toasting]),
     ok = gen_statem:reply({reply, From, ok}),
-    {next_state, toasting, Data};
+    'keep_state_and_data';
 toasting(cast, stop_toasting, Data) ->
     {next_state, powered, Data};
 toasting({call, From}, stop_toasting, Data) ->
     ok = gen_statem:reply({reply, From, ok}),
     {next_state, powered, Data};
-toasting(state_timeout, done_toasting, Data) ->
-    io:format("Finished toasting...~n"),
-    {next_state, powered, Data};
-%% Leaving this here to explore...
-toasting(EventType, CurentState, Data) ->
-    io:format("~p toasting(~p, ~p, ~p)~n", 
-        [?MODULE, EventType, CurentState, Data]),
-    {next_state, toasting, _NewData=Data}.
+toasting(state_timeout, done_toasting, #{ slices := X } = Data) ->
+    io:format("Finished toasting ~p slices...~n", [X]),
+    {next_state, powered, Data}.
 
 %% Leaving this here to explore...
 terminate(Reason, State, Data) ->
