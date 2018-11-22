@@ -1,0 +1,140 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -smp enable -sname factorial -mnesia debug verbose -pa mnesia_table_subscribe
+-mode(compile).
+
+-define(REG_NAME, mnesia_table_subs).
+-define(REMOTE_MOD, mnesia_sub).
+
+main(["system"]) ->
+    Nodes = all_nodes(),
+    MyNode = do_common(),
+    lists:foreach(
+        fun(N) -> 
+            io:format("~p ", [N]),
+            node_actions(N),
+            {ok, _} = rpc:call(N, ?REMOTE_MOD, start_system_subs, [?REG_NAME, MyNode])
+        end,
+        Nodes
+    ),
+    timer:sleep(infinity);
+main(["activity"]) ->
+    Nodes = all_nodes(),
+    MyNode = do_common(),
+    lists:foreach(
+        fun(N) -> 
+            io:format("~p ", [N]),
+            node_actions(N),
+            {ok, _} = rpc:call(N, ?REMOTE_MOD, start_activity_subs, [?REG_NAME, MyNode])
+        end,
+        Nodes
+    ),
+    timer:sleep(infinity);
+main(["tables"]) ->
+% main(["tables", _TableStrings]) ->
+    Nodes = all_nodes(),
+    MyNode = do_common(),
+    Tables = ['blackboard_1'] ++ 
+         [ list_to_atom("blackboard_1_frag"++integer_to_list(Nth)) || Nth <- lists:seq(2, 20) ],
+    lists:foreach(
+        fun(N) -> 
+            io:format("~p ", [N]),
+            node_actions(N),
+            {ok, _} = rpc:call(N, ?REMOTE_MOD, start_tables_subs, [?REG_NAME, MyNode, Tables])
+        end,
+        Nodes
+    ),
+    timer:sleep(infinity).
+
+do_common() ->
+    file:delete("mnesia_sub.beam"),
+    {ok, ?REMOTE_MOD} = c:c("mnesia_table_subscribe/mnesia_sub.erl"),
+    true = start(),
+    %% {ok, _} = net_kernel:start([mnesia_table_subs, shortnames]),
+    node().
+
+node_actions(Node) ->
+    true = erlang:set_cookie(Node, galleria),
+    true = net_kernel:connect(Node),
+    rpc:call(Node, ?REMOTE_MOD, stop, []),
+    purge_module(Node, ?REMOTE_MOD),
+    ok = inject_module(Node, ?REMOTE_MOD).
+
+all_nodes() ->
+    {ok, Hostname} = inet:gethostname(),
+    lists:map(fun(NNN) -> 
+        list_to_atom(NNN++"@"++Hostname)
+    end, ["8p1", "8p2", "8p3", "8p4", "8p5", "8p6", "8p7", "8p8"
+          , "8m1", "8m2", "8m3", "8m4", "8m5", "8m6", "8m7", "8m8"
+          ]).
+
+inject_module(Node, Mod) ->
+    case code:get_object_code(Mod) of
+        {Mod, Bin, File} ->
+            case rpc:call(Node, code, load_binary,
+                          [Mod, File, Bin]) of
+                {module, Mod} ->
+                    io:format("Loaded ~p on ~p~n", [Mod, Node]);
+                {Error, Reason} when Error =:= error;
+                                     Error =:= badrpc ->
+                    {error, {load_binary_failed, Reason}}
+            end;
+        error ->
+            {error, {get_object_code_failed, Mod}}
+    end.
+
+purge_module(Node, Mod) ->
+    Res = try rpc:call(Node, code, soft_purge, [Mod]) of
+      true ->
+          ok;
+      false ->
+          hard_purge_module(Node, Mod);
+      {badrpc, _} = RPCError ->
+          {error, RPCError}
+    catch
+      C:E ->
+          {error, {C,E}}
+    end,
+    case Res of
+        ok ->
+            case rpc:call(Node, code, delete, [Mod]) of
+                true ->
+                    io:format("Purged ~p on ~p~n", [Mod, Node]);
+                false ->
+                    io:format("Could not purged ~p from ~p~n", [Mod, Node])
+            end;
+        {error, Error} ->
+            io:format("Error while purging  ~p from ~p: ~p~n", [Mod, Node, Error])
+    end.
+
+hard_purge_module(Node, Mod) ->
+    try rpc:call(Node, code, purge, [Mod]) of
+        true ->
+            ok;
+        false ->
+           io:format("Could not code:purge ~p~n", [Mod]);
+        {badrpc, _} = RPCError ->
+            {error, RPCError}
+    catch
+        C:E ->
+            {error, {C,E}}
+    end.
+
+start() ->
+    erlang:register(?REG_NAME, spawn(fun() -> loop() end) ).
+
+loop() ->
+    receive 
+        A ->
+            io:format(standard_io, "~p~n", [A]),
+            loop()
+    end.
+
+% create module that can
+%     start a process, 
+%     subscribe to a mnesia table
+%     write the contents to a logfile
+
+% ~/devscripts/gind "correl_id"
+% ~/devscripts/gind "?MQCI_NONE"
+
