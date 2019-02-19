@@ -17,7 +17,7 @@ do_analyze() ->
     io:format("Performing cover analysis...\n", []),
     %% figure out what coverdata we have
     %%CoverDir = cover_dir(),
-    CoverFiles = ["eunit.coverdata"], % get_all_coverdata(CoverDir),
+    CoverFiles = ["ct.coverdata", "eunit.coverdata"], % get_all_coverdata(CoverDir),
     %% start the cover server if necessary
     {ok, CoverPid} = start_cover(),
     %% redirect cover output

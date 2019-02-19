@@ -62,7 +62,7 @@ trace(Nodes, TraceModSpecs, TotalMessages, TraceTime)
     [ 
       begin
           true = erlang:set_cookie(Node, Cookie),
-          true = net_kernel:connect(Node),
+          true = net_kernel:connect_node(Node),
           {ok, _} = dbg:n(Node) 
       end || {Node, Cookie} <- Nodes
     ],
