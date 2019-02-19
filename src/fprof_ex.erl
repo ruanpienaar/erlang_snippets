@@ -19,10 +19,10 @@ func() ->
 
 
 
-fprof:start().
-fprof:trace([start, {procs, all}]).
-timer:sleep(1000).
-fprof:trace([stop]).
-fprof:profile().
-fprof:analyse([totals, {dest, "fprof.analysis"}]).
-fprof:stop().
+%fprof:start().
+%fprof:trace([start, {procs, all}]).
+%timer:sleep(1000).
+%fprof:trace([stop]).
+%fprof:profile().
+%fprof:analyse([totals, {dest, "fprof.analysis"}]).
+%fprof:stop().
