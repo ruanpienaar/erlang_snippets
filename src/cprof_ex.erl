@@ -22,7 +22,6 @@ profile_and_exclude_otp_mods(Time, Type) ->
         lists:foreach(fun({Mod, _TotalCalls, ModFuncCalls}) ->
             case not lists:member(Mod, ExcludeMods) of 
                 true ->
-                    % do_cprof_trace_action([mod, PassAlong, Mod, Type]),
                     lists:foreach(fun({{M,F,A}, Calls}) when M == Mod ->
                         do_cprof_trace_action([func, PassAlong, M, F, A, Calls, Type])
                     end, ModFuncCalls);
@@ -33,16 +32,14 @@ profile_and_exclude_otp_mods(Time, Type) ->
         cprof:stop(),
         do_cprof_trace_action([stop, PassAlong])
     end).
-
+    
 % Shell
 do_cprof_trace_action([start, shell]) ->
     ok;
 do_cprof_trace_action([total, _PassAlong, TotalFunctionCalls, shell]) ->
     io:format("Total Function calls ~p\n", [TotalFunctionCalls]);
-% do_cprof_trace_action([mod, _PassAlong, Mod, shell]) ->
-%     io:format("~p\n", [Mod]);
 do_cprof_trace_action([func, _PassAlong, M, F, A, Calls, shell]) ->
-    io:format("~p:~p\\~p [~p]\n", [M, F, A, Calls]);
+    io:format(entry_format(M, F, A, Calls));
 do_cprof_trace_action([stop, _PassAlong]) ->
     ok;
 % File
@@ -52,12 +49,13 @@ do_cprof_trace_action([start, file]) ->
     {ok, _FPid} = file:open(Filename, [write, binary]);
 do_cprof_trace_action([total, {ok, FPid}, TotalFunctionCalls, file]) ->
     file:write(FPid, list_to_binary( io_lib:format("~p\n", [TotalFunctionCalls]) ));
-% do_cprof_trace_action([mod, {ok, FPid}, Mod, file]) ->
-%     file:write(FPid, list_to_binary( io_lib:format("~p\n", [Mod]) ));
 do_cprof_trace_action([func, {ok, FPid}, M, F, A, Calls, file]) ->
-    file:write(FPid, list_to_binary( io_lib:format("~p\t~p\t~p\t~p\n", [M, F, A, Calls]) ));
+    file:write(FPid, list_to_binary( entry_format(M, F, A, Calls) ));
 do_cprof_trace_action([stop, {ok, FPid}]) ->
     ok = file:close(FPid).
+    
+entry_format(M, F, A, Calls) ->
+    io_lib:format("~p ~p:~p\\~p\n", [Calls, M, F, A]).
 
 erlang_mods() ->
     [raw_file_io_compressed,
