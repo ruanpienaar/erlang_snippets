@@ -19,12 +19,12 @@ profile_and_exclude_otp_mods(Time, Type) ->
         {TotalFunctionCalls, SortedMods} = cprof:analyze(),
         do_cprof_trace_action([total, PassAlong, TotalFunctionCalls, Type]),
         ExcludeMods = erlang_mods(),
-        lists:foreach(fun({Mod, TotalCalls, ModFuncCalls}) ->
+        lists:foreach(fun({Mod, _TotalCalls, ModFuncCalls}) ->
             case not lists:member(Mod, ExcludeMods) of 
                 true ->
                     % do_cprof_trace_action([mod, PassAlong, Mod, Type]),
-                    lists:foreach(fun({{Mod,F,A}, Calls}) ->
-                        do_cprof_trace_action([func, PassAlong, Mod, F, A, Calls, Type])
+                    lists:foreach(fun({{M,F,A}, Calls}) when M == Mod ->
+                        do_cprof_trace_action([func, PassAlong, M, F, A, Calls, Type])
                     end, ModFuncCalls);
                 false ->
                     ok
@@ -49,7 +49,7 @@ do_cprof_trace_action([stop, _PassAlong]) ->
 do_cprof_trace_action([start, file]) ->
     Filename = os:cmd("mktemp")--"\n",
     io:format("Create export file in ~p\n\n", [Filename]),
-    {ok, FPid} = file:open(Filename, [write, binary]);
+    {ok, _FPid} = file:open(Filename, [write, binary]);
 do_cprof_trace_action([total, {ok, FPid}, TotalFunctionCalls, file]) ->
     file:write(FPid, list_to_binary( io_lib:format("~p\n", [TotalFunctionCalls]) ));
 % do_cprof_trace_action([mod, {ok, FPid}, Mod, file]) ->
