@@ -26,3 +26,7 @@ func() ->
 %fprof:profile().
 %fprof:analyse([totals, {dest, "fprof.analysis"}]).
 %fprof:stop().
+
+
+% sudo apt install kcachegrind
+% git clone https://github.com/isacssouza/erlgrind
