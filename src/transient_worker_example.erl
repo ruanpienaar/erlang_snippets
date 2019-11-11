@@ -2,7 +2,8 @@
 
 -export([
     start_link/1,
-    stop/1
+    stop/1,
+    test_bad_stop/1
 ]).
 
 -behaviour(gen_statem).
@@ -37,6 +38,13 @@ start_link(Name) ->
 stop(Name) ->
     gen_statem:cast(Name, stop).
 
+%% @doc
+%%    Test when the gen_statem encouters some failure, that the transient worker
+%%    get's restarted :)
+%% @end
+test_bad_stop(Name) ->
+    gen_statem:cast(Name, test_bad_stop).
+
 %% ======================================================================
 
 -spec callback_mode() -> gen_statem:callback_mode_result().
@@ -62,6 +70,10 @@ check({timeout, try_again}, retry, State) ->
     can_start_work(State);
 check({call, From}, _Msg, State) ->
     {next_state, check, State, [{reply, From, ok}]};
+check(cast, stop, _State) ->
+    {stop, normal};
+check(cast, test_bad_stop, _State) ->
+    io:format(break_stuff);
 check(cast, _Msg, State) ->
     {next_state, check, State};
 check(info, _Msg, State) ->
@@ -77,6 +89,10 @@ check(info, _Msg, State) ->
             gen_statem:event_handler_result(atom()).
 work({call, From}, _Msg, State) ->
     {next_state, work, State, [{reply, From, ok}]};
+work(cast, stop, _State) ->
+    {stop, normal};
+work(cast, test_bad_stop, _State) ->
+    io:format(break_stuff);
 work(cast, _Msg, State) ->
     {next_state, work, State};
 work(info, _Msg, State) ->
