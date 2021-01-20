@@ -1,5 +1,7 @@
 -module(toaster_statem_handle_eventfunc).
 
+-behaviour(gen_statem).
+
 %% API
 -export([
     start_link/0,
@@ -268,10 +270,10 @@ handle_event(internal, {break_toaster}, OtherState, Data) ->
     {next_state, broken, Data};
 
 % annoyer
-handle_event(cast, start_link_annoyer, OtherState, Data) ->    
-    Pid = spawn_link(fun annoyer/0),
-    true = erlang:register(annoyer, Pid),
-    keep_state_and_data; %% Strange, could not reply Pid as value 
+%handle_event(cast, start_link_annoyer, OtherState, Data) ->    
+%    Pid = spawn_link(fun annoyer/0),
+%    true = erlang:register(annoyer, Pid),
+%    keep_state_and_data; %% Strange, could not reply Pid as value 
 % handle_event({call, From}, stop_annoyer, OtherState, #{ annoyer_pid := Pid } = Data) ->
 %     {keep_state, Data#{ annoyer_pid => undefined }};
 handle_event(info, poke, OtherState, Data) ->

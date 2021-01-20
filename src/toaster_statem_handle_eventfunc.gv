@@ -1,0 +1,8 @@
+digraph "/home/rp/code/erlang_snippets/src/toaster_statem_handle_eventfunc" { 
+rankdir=LR;
+edge [fontsize=10];
+node [shape=circle];
+ranksep = 2;
+nodesep = 0.5
+
+}

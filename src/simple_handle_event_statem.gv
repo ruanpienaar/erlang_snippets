@@ -1,0 +1,8 @@
+digraph "/home/rp/code/erlang_snippets/src/simple_handle_event_statem" { 
+rankdir=LR;
+edge [fontsize=10];
+node [shape=circle];
+ranksep = 2;
+nodesep = 0.5
+
+}
