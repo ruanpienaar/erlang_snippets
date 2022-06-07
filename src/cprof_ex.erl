@@ -11,6 +11,7 @@ profile_and_exclude_otp_mods(Time) ->
 -spec profile_and_exclude_otp_mods(non_neg_integer(), shell | file) -> ok.
 profile_and_exclude_otp_mods(Time, Type) ->
     spawn(fun() ->
+        io:format("... CPROF STARTING ...\n"),
         cprof:start(),
         timer:sleep(Time),
         cprof:pause(),
