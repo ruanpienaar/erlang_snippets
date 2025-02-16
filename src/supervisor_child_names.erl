@@ -5,6 +5,25 @@
 %% This is defnied within supervisor.erl
 %%
 
+
+
+
+
+
+
+
+%% supervisor:get_childspec(SupRef, Id) -> Result
+    %% doesn't return back the PID..
+
+
+
+
+
+
+
+
+
+
 -record(child, {
     pid,
     id,
@@ -63,7 +82,7 @@ add_child(Id) ->
     {ok, _} = supervisor:start_child(
         ?MODULE,
         #{
-            id => Id,
+            id => undefined,
             start => {supervised_child, start_link, []},
             restart => permanent,
             shutdown => 5000,

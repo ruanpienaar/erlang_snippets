@@ -2,7 +2,7 @@
 
 -export([
     get_q1/1,
-    get_q1/2
+    get_q2/1
 ]).
 
 get_q1(Partition) ->

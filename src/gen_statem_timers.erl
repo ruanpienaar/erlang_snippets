@@ -64,7 +64,7 @@ callback_mode() ->
     ].
 
 init({}) ->
-    {ok, initial_state, _Data=#{}}.
+    {ok, initial_state, _Data=#{}, [{state_timeout, timer:seconds(60), event_content}]}.
 
 %% @doc
 %% 1) When starting up ( old and new states both initial_state )
@@ -91,13 +91,15 @@ handle_event({call, From}, {state_timeout}, State, Data) ->
         State,
         Data,
         [
-            {state_timeout, 1000, event_content},
+            {state_timeout, timer:seconds(60), event_content},
             {reply, From, ok}
         ]
     };
 %% @doc
 %%  (3)(5) state timeout Example ( what happens to the timer when transitioning states )
 %% @end
+handle_event({call, From}, {same_state}, _State, Data) ->
+    {keep_state, Data, [{reply, From, ok}]};
 handle_event({call, From}, {new_state}, _State, Data) ->
     {next_state, new_state, Data, [{reply, From, ok}]};
 %% @doc
@@ -127,7 +129,7 @@ handle_event({call, From}, {gen_new_timeout}, State, _Data) ->
 %% @doc
 %%  (2) state_timeout Example (timer ran out)
 %% @end
-handle_event(M = state_timeout, Ec = event_content, S = initial_state, _Data) ->
+handle_event(M = state_timeout, Ec = event_content, S, _Data) ->
     ?LOG_NOTICE(#{
         info => {state_timeout, Ec, S},
         line => ?LINE,
